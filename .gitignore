@@ -3,3 +3,4 @@ src-tauri/target/
 node_modules/
 dist/
 *.log
+src-tauri/gen/
