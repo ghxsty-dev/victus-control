@@ -25,7 +25,9 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": [],
+    "icon": [
+      "icons/icon.png"
+    ],
     "category": "Utility",
     "shortDescription": "HP Victus fan eğrisi ve CPU/GPU güç limiti",
     "longDescription": "Ryzen 7840HS + RTX 4060 için sıcaklık izleme, fan eğrisi (nbfc/hwmon), ryzenadj CPU limiti ve nvidia-smi GPU limiti."

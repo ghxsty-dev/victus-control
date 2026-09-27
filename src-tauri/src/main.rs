@@ -11,6 +11,7 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::Mutex;
 use std::time::Duration;
+use tauri::{Emitter, Manager};
 
 // ---------- Veri tipleri ----------
 
@@ -231,7 +232,7 @@ fn get_sensors() -> SensorData {
         .iter()
         .flatten()
     {
-        m = Some(m.map_or(**v, |cur: f32| cur.max(**v)));
+        m = Some(m.map_or(*v, |cur: f32| cur.max(*v)));
     }
     s.max_temp = m;
     s
