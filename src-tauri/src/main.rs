@@ -524,7 +524,7 @@ fn fan_daemon(app: tauri::AppHandle) {
     std::thread::spawn(move || loop {
         std::thread::sleep(Duration::from_secs(2));
         let (enabled, curve) = {
-            let Ok(st) = app.try_state::<Mutex<AppState>>() else {
+            let Some(st) = app.try_state::<Mutex<AppState>>() else {
                 continue;
             };
             let Ok(st) = st.try_lock() else {
