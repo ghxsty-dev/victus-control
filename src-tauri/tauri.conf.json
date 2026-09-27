@@ -5,7 +5,6 @@
   "identifier": "com.victus.control",
   "build": {
     "frontendDist": "../src",
-    "devUrl": "../src",
     "beforeDevCommand": "",
     "beforeBuildCommand": ""
   },
