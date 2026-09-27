@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Victus Control - Fan + Güç Limiti</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<header>
+  <h1>Victus Control</h1>
+  <p class="sub">HP Victus • Ryzen 7 7840HS + RTX 4060 • Fan eğrisi + CPU/GPU güç limiti</p>
+  <div id="backend-banner" class="banner hidden"></div>
+</header>
+
+<main>
+  <section class="grid">
+    <div class="card">
+      <h2>Sıcaklıklar</h2>
+      <div class="temps">
+        <div><span>CPU (k10temp)</span><b id="t-cpu">—</b></div>
+        <div><span>APU (amdgpu)</span><b id="t-apu">—</b></div>
+        <div><span>NVIDIA</span><b id="t-nvidia">—</b></div>
+        <div><span>NVMe / ACPI</span><b id="t-extra">—</b></div>
+        <div><span>Max</span><b id="t-max">—</b></div>
+      </div>
+      <div class="row">
+        <div><span>GPU güç</span><b id="t-gpupow">—</b></div>
+        <div><span>CPU/APU güç</span><b id="t-cpupow">—</b></div>
+      </div>
+      <button id="btn-refresh">Yenile</button>
+      <label class="check"><input type="checkbox" id="auto-refresh" checked /> 2 sn'de bir otomatik yenile</label>
+    </div>
+
+    <div class="card">
+      <h2>Fan Durumu</h2>
+      <p>Arka uç: <b id="fan-backend">—</b></p>
+      <p id="fan-detail" class="muted"></p>
+      <p>Hedef hız: <b id="fan-speed">—</b> • Baz sıcaklık: <b id="fan-temp">—</b></p>
+      <div class="row">
+        <input id="manual-fan" type="number" min="0" max="100" value="50" />
+        <button id="btn-manual-fan">Manuel % Uygula</button>
+      </div>
+      <label class="check"><input type="checkbox" id="auto-fan" /> Otomatik fan eğrisini uygula</label>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Fan Eğrisi (sıcaklık → hız)</h2>
+    <canvas id="curve" width="700" height="260"></canvas>
+    <div id="curve-points"></div>
+    <div class="row">
+      <button id="btn-add-point">Nokta Ekle</button>
+      <button id="btn-save-curve">Eğriyi Kaydet</button>
+      <button id="btn-reset-curve">Varsayılan</button>
+    </div>
+    <p class="muted">Not: Victus EC Linux'a fan girdisi açmazsa arka uç "unsupported" görünür. Çözüm: <code>scripts/install-deps.sh</code> ile nbfc-linux kurun.</p>
+  </section>
+
+  <section class="grid">
+    <div class="card">
+      <h2>CPU Güç Limiti (ryzenadj)</h2>
+      <label>STAPM (W): <b id="v-stapm">35</b><input id="in-stapm" type="range" min="8" max="54" step="1" value="35" /></label>
+      <label>PPT Fast (W): <b id="v-fast">45</b><input id="in-fast" type="range" min="8" max="65" step="1" value="45" /></label>
+      <label>PPT Slow (W): <b id="v-slow">40</b><input id="in-slow" type="range" min="8" max="60" step="1" value="40" /></label>
+      <button id="btn-cpu">CPU Limitlerini Uygula</button>
+      <p id="cpu-status" class="muted"></p>
+    </div>
+    <div class="card">
+      <h2>GPU Güç Limiti (nvidia-smi)</h2>
+      <p>Min <b id="gpu-min">5</b>W • Max <b id="gpu-max">120</b>W • Varsayılan <b id="gpu-def">80</b>W • Şu an <b id="gpu-cur">—</b></p>
+      <label>Limit (W): <b id="v-gpu">50</b><input id="in-gpu" type="range" min="5" max="120" step="1" value="50" /></label>
+      <button id="btn-gpu">GPU Limitini Uygula</button>
+      <p id="gpu-status" class="muted"></p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Log</h2>
+    <pre id="log"></pre>
+  </section>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
