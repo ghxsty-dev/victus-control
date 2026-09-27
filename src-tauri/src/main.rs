@@ -253,16 +253,18 @@ fn get_gpu_limits() -> Result<GpuLimits, String> {
     if parts.len() < 4 {
         return Err(format!("nvidia-smi çıktısı anlaşılamadı: {}", out));
     }
-    let parse = |i: usize| -> Result<f32, String> {
+    // Bazı sürücülerde power.limit CSV'de [N/A] döner; o zaman current boş geçilir.
+    let parse_strict = |i: usize| -> Result<f32, String> {
         parts[i]
             .parse::<f32>()
             .map_err(|_| format!("güç değeri okunamadı: {}", parts[i]))
     };
+    let current = parts[0].parse::<f32>().ok();
     Ok(GpuLimits {
-        current: Some(parse(0)?),
-        min: parse(1)?,
-        max: parse(2)?,
-        default: parse(3)?,
+        current,
+        min: parse_strict(1)?,
+        max: parse_strict(2)?,
+        default: parse_strict(3)?,
     })
 }
 

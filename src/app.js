@@ -1,4 +1,5 @@
-const { invoke } = window.__TAURI__.core;
+const tauriCore = (window.__TAURI__ && window.__TAURI__.core) ? window.__TAURI__.core : null;
+const invoke = tauriCore ? tauriCore.invoke.bind(tauriCore) : null;
 const logEl = document.getElementById('log');
 function log(msg) {
   const t = new Date().toLocaleTimeString();
@@ -13,7 +14,18 @@ let curve = [
   { temp: 90, speed: 100 },
 ];
 
+function needTauri() {
+  if (!invoke) {
+    const banner = document.getElementById('backend-banner');
+    banner.classList.remove('hidden');
+    banner.textContent = 'Tauri arka ucu yok: bu sayfa tarayıcıda açılmış. Veriler için uygulamayı çalıştırın (src-tauri içinde cargo run --release) ve açılan Victus Control penceresini kullanın.';
+    return false;
+  }
+  return true;
+}
+
 async function refreshSensors() {
+  if (!invoke) return;
   try {
     const s = await invoke('get_sensors');
     const f = (v) => (v == null ? '—' : `${v.toFixed(1)}°C`);
@@ -29,6 +41,7 @@ async function refreshSensors() {
 }
 
 async function refreshFan() {
+  if (!invoke) return;
   try {
     const st = await invoke('get_fan_status');
     document.getElementById('fan-backend').textContent = st.backend;
@@ -45,6 +58,7 @@ async function refreshFan() {
 }
 
 async function refreshGpuLimits() {
+  if (!invoke) return;
   try {
     const l = await invoke('get_gpu_limits');
     document.getElementById('gpu-min').textContent = l.min;
@@ -104,12 +118,23 @@ function renderPoints() {
   drawCurve();
 }
 
+async function showRaw() {
+  if (!needTauri()) { log('Ham veri için Tauri penceresi gerekli.'); return; }
+  try {
+    const s = await invoke('get_sensors');
+    log('HAM sensör: ' + JSON.stringify(s));
+  } catch (e) { log('Ham veri hatası: ' + e); }
+}
+
 async function init() {
+  renderPoints(); // grafik Tauri olmadan da çizilir
+  if (!needTauri()) { log('Arayüz önizleme modunda (Tauri yok).'); return; }
   try {
     const tools = await invoke('get_cpu_tool_status');
+    log('Araçlar: ' + JSON.stringify(tools));
     if (!tools.ryzenadj) log('Uyarı: ryzenadj yok — scripts/install-deps.sh çalıştırın.');
     if (!tools.nbfc) log('Bilgi: nbfc yok — fan backend unsupported olabilir.');
-  } catch (e) { log('Araç kontrolü atlandı (tarayıcı önizlemesi?): ' + e); }
+  } catch (e) { log('Araç kontrol hatası: ' + e); }
   try { curve = await invoke('get_fan_curve'); } catch {}
   renderPoints();
   await refreshSensors(); await refreshFan(); await refreshGpuLimits();
@@ -118,13 +143,18 @@ async function init() {
   }, 2000);
 }
 
-document.getElementById('btn-refresh').onclick = async () => { await refreshSensors(); await refreshFan(); };
+document.getElementById('btn-refresh').onclick = async () => {
+  if (!needTauri()) return;
+  await refreshSensors(); await refreshFan(); await showRaw();
+};
 document.getElementById('btn-manual-fan').onclick = async () => {
+  if (!needTauri()) return;
   const v = Number(document.getElementById('manual-fan').value);
   try { log(await invoke('set_manual_fan', { speed: v })); await refreshFan(); }
   catch (e) { log('Manuel fan hatası: ' + e); }
 };
 document.getElementById('auto-fan').onchange = async (e) => {
+  if (!needTauri()) return;
   try { log(await invoke('set_auto_fan', { enabled: e.target.checked })); } catch (err) { log('Auto fan hatası: ' + err); }
 };
 document.getElementById('btn-add-point').onclick = () => { curve.push({ temp: 75, speed: 70 }); renderPoints(); };
@@ -133,12 +163,14 @@ document.getElementById('btn-reset-curve').onclick = () => {
   renderPoints();
 };
 document.getElementById('btn-save-curve').onclick = async () => {
+  if (!needTauri()) return;
   try { log(await invoke('set_fan_curve', { curve })); } catch (e) { log('Eğri hatası: ' + e); }
 };
 for (const [id, vid] of [['in-stapm', 'v-stapm'], ['in-fast', 'v-fast'], ['in-slow', 'v-slow'], ['in-gpu', 'v-gpu']]) {
   document.getElementById(id).oninput = (e) => { document.getElementById(vid).textContent = e.target.value; };
 }
 document.getElementById('btn-cpu').onclick = async () => {
+  if (!needTauri()) return;
   const req = {
     stapm_w: Number(document.getElementById('in-stapm').value),
     fast_w: Number(document.getElementById('in-fast').value),
@@ -148,6 +180,7 @@ document.getElementById('btn-cpu').onclick = async () => {
   catch (e) { log('CPU hatası: ' + e); }
 };
 document.getElementById('btn-gpu').onclick = async () => {
+  if (!needTauri()) return;
   const v = Number(document.getElementById('in-gpu').value);
   try { log(await invoke('set_gpu_power', { limitW: v })); await refreshGpuLimits(); await refreshSensors(); }
   catch (e) { log('GPU hatası: ' + e); }
