@@ -155,6 +155,11 @@ document.getElementById('btn-manual-fan').onclick = async () => {
   try { log(await invoke('set_manual_fan', { speed: v })); await refreshFan(); }
   catch (e) { log('Manuel fan hatası: ' + e); }
 };
+document.getElementById('btn-fw-auto').onclick = async () => {
+  if (!needTauri()) return;
+  try { log(await invoke('restore_firmware_fan')); await refreshFan(); }
+  catch (e) { log('Firmware AUTO hatası: ' + e); }
+};
 document.getElementById('auto-fan').onchange = async (e) => {
   if (!needTauri()) return;
   try { log(await invoke('set_auto_fan', { enabled: e.target.checked })); } catch (err) { log('Auto fan hatası: ' + err); }

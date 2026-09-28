@@ -371,7 +371,46 @@ fn detect_pwm_paths() -> Vec<String> {
     out
 }
 
+/// Yamalı hp-wmi (Batuhan4/hp-wmi-fan-and-backlight-control) hwmon düğümü:
+/// "hp" isimli hwmon içinde fan1_target/fan2_target (yalnız yazılır, RPM)
+/// ve pwm1_enable (0=MAX, 1=MANUEL, 2=firmware AUTO) bulunur.
+fn find_hp_hwmon() -> Option<String> {
+    let entries = fs::read_dir("/sys/class/hwmon").ok()?;
+    for e in entries.flatten() {
+        let name = e.file_name().to_string_lossy().to_string();
+        if hwmon_name(&name) == "hp"
+            && Path::new(&format!("/sys/class/hwmon/{}/fan1_target", name)).exists()
+        {
+            return Some(name);
+        }
+    }
+    None
+}
+
+fn hp_fan_max(hwmon: &str, fan: u8) -> Option<u32> {
+    read_trimmed(&format!("/sys/class/hwmon/{}/fan{}_max", hwmon, fan))?.parse().ok()
+}
+
+fn victus_backend_active() -> bool {
+    run_cmd("systemctl", &["is-active", "--quiet", "victus-backend.service"]).is_ok()
+}
+
 fn fan_backend() -> (String, String, Vec<String>) {
+    if let Some(h) = find_hp_hwmon() {
+        let conflict = if victus_backend_active() {
+            " UYARI: victus-backend.service çalışıyor — iki fan kontrolcüsü çakışır. Ya onu durdurun (sudo systemctl stop victus-backend) ya da fanı oradan yönetin."
+        } else {
+            ""
+        };
+        return (
+            "hp-wmi".into(),
+            format!(
+                "Yamalı hp-wmi bulundu ({}: fan hedefleri RPM cinsinden yazılır).{}",
+                h, conflict
+            ),
+            vec![format!("/sys/class/hwmon/{}/fan1_target", h)],
+        );
+    }
     if run_cmd("which", &["nbfc"]).is_ok() {
         return (
             "nbfc".into(),
@@ -421,6 +460,42 @@ fn apply_fan_percent(pct: u8) -> Result<String, String> {
     let pct = pct.min(100);
     let (backend, _, pwms) = fan_backend();
     match backend.as_str() {
+        "hp-wmi" => {
+            // %hız -> her fanın kendi max RPM'ine oranlanır, fan*_target'a RPM yazılır.
+            // Hedef yazımı modülü otomatik MANUEL'e alır; yine de pwm1_enable=1 yazılır.
+            let hwmon = find_hp_hwmon().ok_or("hp-wmi düğümü kayboldu.".to_string())?;
+            let base = format!("/sys/class/hwmon/{}", hwmon);
+            run_privileged("sh", &vec!["-c".into(), format!("echo 1 > {}/pwm1_enable", base)])?;
+            let mut ok = 0;
+            let mut errs = Vec::new();
+            for fan in [1u8, 2u8] {
+                let target = format!("{}/fan{}_target", base, fan);
+                if !Path::new(&target).exists() {
+                    continue;
+                }
+                match hp_fan_max(&hwmon, fan) {
+                    Some(max) => {
+                        let rpm = ((pct as f32 / 100.0) * max as f32).round() as u32;
+                        let cmd = format!("echo {} > {}", rpm, target);
+                        match run_privileged("sh", &vec!["-c".into(), cmd]) {
+                            Ok(_) => {
+                                ok += 1;
+                            }
+                            Err(e) => errs.push(format!("fan{}: {}", fan, e)),
+                        }
+                    }
+                    None => errs.push(format!("fan{} max RPM okunamadı", fan)),
+                }
+            }
+            if ok > 0 {
+                Ok(format!(
+                    "hp-wmi ile %{} uygulandı ({} fana RPM hedefi). 2 sn döngü watchdog yerine geçer.",
+                    pct, ok
+                ))
+            } else {
+                Err(format!("fan hedefi yazılamadı: {}", errs.join(" | ")))
+            }
+        }
         "nbfc" => {
             // Tüm fanlara uygula (0 ve 1). Hata verirse ilk hatayı döndür.
             let mut logs = Vec::new();
@@ -475,10 +550,24 @@ fn apply_fan_percent(pct: u8) -> Result<String, String> {
             }
         }
         _ => Err(
-            "Fan yazma desteklenmiyor (unsupported). nbfc-linux kurun: scripts/install-deps.sh"
-                .into(),
+            "Fan yazma desteklenmiyor (unsupported). 16-s0xxx için yamalı hp-wmi gerekir: Batuhan4/victus-control kurun.".into(),
         ),
     }
+}
+
+/// Fanları firmware AUTO'ya (pwm1_enable=2) döndürür. Otomatik eğriyi de kapatır.
+#[tauri::command]
+fn restore_firmware_fan(state: tauri::State<Mutex<AppState>>) -> Result<String, String> {
+    state.lock().unwrap().auto_fan = false;
+    let hwmon = find_hp_hwmon().ok_or("hp-wmi fan düğümü yok.".to_string())?;
+    run_privileged(
+        "sh",
+        &vec![
+            "-c".into(),
+            format!("echo 2 > /sys/class/hwmon/{}/pwm1_enable", hwmon),
+        ],
+    )?;
+    Ok("Fanlar firmware AUTO'ya döndü, otomatik eğri kapatıldı.".into())
 }
 
 #[tauri::command]
@@ -595,6 +684,7 @@ fn main() {
             set_fan_curve,
             set_auto_fan,
             set_manual_fan,
+            restore_firmware_fan,
         ])
         .run(tauri::generate_context!())
         .expect("Tauri çalıştırılamadı");
