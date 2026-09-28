@@ -26,6 +26,8 @@ pub struct SensorData {
     pub nvidia_power_limit: Option<f32>,
     pub cpu_power_avg: Option<f32>,
     pub max_temp: Option<f32>,
+    pub fan1_rpm: Option<u32>,
+    pub fan2_rpm: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -227,6 +229,27 @@ fn get_sensors() -> SensorData {
     s.nvidia_power = np;
     s.nvidia_power_limit = npl;
 
+    // Fan RPM: yamalı hp-wmi (veya başka bir sürücü) fan*_input açarsa yakala.
+    // Stok 16-s0xxx'te bu dosyalar yok; DKMS yaması kurulunca belirir.
+    if let Ok(entries) = fs::read_dir("/sys/class/hwmon") {
+        for e in entries.flatten() {
+            let base = format!("/sys/class/hwmon/{}", e.file_name().to_string_lossy());
+            if s.fan1_rpm.is_none() {
+                if let Some(raw) = read_trimmed(&format!("{}/fan1_input", base)) {
+                    s.fan1_rpm = raw.parse::<u32>().ok();
+                }
+            }
+            if s.fan2_rpm.is_none() {
+                if let Some(raw) = read_trimmed(&format!("{}/fan2_input", base)) {
+                    s.fan2_rpm = raw.parse::<u32>().ok();
+                }
+            }
+            if s.fan1_rpm.is_some() && s.fan2_rpm.is_some() {
+                break;
+            }
+        }
+    }
+
     let mut m: Option<f32> = None;
     for v in [s.cpu_temp, s.apu_temp, s.nvidia_temp, s.acpi_temp]
         .iter()
@@ -366,7 +389,7 @@ fn fan_backend() -> (String, String, Vec<String>) {
     }
     (
         "unsupported".into(),
-        "Bu Victus'ta Linux'a açık fan girdisi yok (EC kilitli). nbfc-linux profili kurmadan fan hızı doğrudan yazılamaz; eğri yine de sıcaklık->hedef hız hesabı için çalışır ve güç limitlerini kısarak dolaylı soğutma sağlar.".into(),
+        "Bu Victus 16-s0xxx'te stok sürücüler Linux'a fan girdisi açmıyor (EC kilitli, hp-wmi pwm yok). Gerçek fan kontrolü için yamalı hp-wmi DKMS modülü gerekir: Batuhan4/victus-control (16-s00xx onaylı, Ubuntu destekli) kurulumu yapın; modül pwm/fan düğümlerini açınca bu uygulama otomatik olarak hwmon-pwm arka ucuna geçer.".into(),
         vec![],
     )
 }

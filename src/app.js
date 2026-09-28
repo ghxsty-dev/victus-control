@@ -37,6 +37,8 @@ async function refreshSensors() {
     document.getElementById('t-max').textContent = f(s.max_temp);
     document.getElementById('t-gpupow').textContent = s.nvidia_power != null ? `${s.nvidia_power.toFixed(1)}W (lim ${s.nvidia_power_limit ?? '?' }W)` : '—';
     document.getElementById('t-cpupow').textContent = s.cpu_power_avg != null ? `${s.cpu_power_avg.toFixed(1)}W` : '—';
+    const rpm = (v) => (v == null ? '—' : `${v} RPM`);
+    document.getElementById('fan-rpm').textContent = `${rpm(s.fan1_rpm)} / ${rpm(s.fan2_rpm)}`;
   } catch (e) { log('Sensör hatası: ' + e); }
 }
 

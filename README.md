@@ -9,16 +9,27 @@ HP Victus (Ryzen 7 7840HS + RTX 4060, Ubuntu) için **Tauri + Rust** masaüstü 
 
 Arayüz dili Türkçe. Ön yüz derlemesiz saf HTML/CSS/JS (`src/`), arka yüz Rust (`src-tauri/src/main.rs`). Node/npm gerekmez.
 
-## Önemli donanım notu
+## Fan kontrolü gerçeği (16-s0xxx)
 
-Bu Victus'ta `/sys/class/hwmon` altında **fan/pwm girdisi yok** (EC kilitli — bu seride tipik).
-Uygulama açılışta arka ucu otomatik seçer:
+Stok Linux sürücüleri bu kasada **hiçbir fan düğümü açmıyor** (doğrulandı:
+`pwm*`/`fan*_input` yok, `hp-wmi` hwmon yok, `platform_profile` yok).
+`hp_omen_extra` modülü yalnız klavye RGB'sidir. Bu yüzden uygulama ilk
+açılışta `unsupported` gösterir — bu bir hata değil, donanım gerçeğidir.
 
-1. `nbfc` kuruluysa → `nbfc set -f 0/1 -s %` ile EC'ye yazar
-2. `hwmon` pwm girdisi varsa → `/sys/.../pwm*` dosyasına yazar
-3. Hiçbiri yoksa → `unsupported` gösterir; eğri yine hedef hızı hesaplar ama yazamaz
+Gerçek fan kontrolü için yamalı `hp-wmi` DKMS modülü gerekir. Senin kasa
+ailen (16-s00xx) için onaylı çözüm: **Batuhan4/victus-control**
+(Gerçek eğri = Better Auto, Manuel RPM, MAX; Ubuntu destekli):
 
-Kalıcı fan kontrolü için `scripts/install-deps.sh` ile **nbfc-linux** kurup uygun Victus/OMEN profilini seçin.
+```bash
+git clone https://github.com/Batuhan4/victus-control.git
+cd victus-control
+sudo ./install.sh
+```
+
+Secure Boot açıksa DKMS modülünü imzalaman (MOK) gerekebilir; kurulum
+yönlendirmesini izle. Modül `pwm`/`fan` düğümlerini açınca bu uygulama
+otomatik olarak `hwmon-pwm` arka ucuna geçer ve RPM göstermeye başlar.
+Güç limitleri (ryzenadj + nvidia-smi) modülsüz de çalışır.
 
 ## Kurulum
 
