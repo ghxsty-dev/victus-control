@@ -388,11 +388,17 @@ fn find_hp_hwmon() -> Option<String> {
 }
 
 fn hp_fan_max(hwmon: &str, fan: u8) -> Option<u32> {
-    read_trimmed(&format!("/sys/class/hwmon/{}/fan{}_max", hwmon, fan))?.parse().ok()
+    read_trimmed(&format!("/sys/class/hwmon/{}/fan{}_max", hwmon, fan))?
+        .parse()
+        .ok()
 }
 
 fn victus_backend_active() -> bool {
-    run_cmd("systemctl", &["is-active", "--quiet", "victus-backend.service"]).is_ok()
+    run_cmd(
+        "systemctl",
+        &["is-active", "--quiet", "victus-backend.service"],
+    )
+    .is_ok()
 }
 
 fn fan_backend() -> (String, String, Vec<String>) {
